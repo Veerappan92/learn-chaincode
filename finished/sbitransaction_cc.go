@@ -374,7 +374,7 @@ func ListRefnoForBranch(stub shim.ChaincodeStubInterface, args []string) ([]byte
 
 	for _, value := range trans_Init_map {
 			if value.trans_init_branch  == args[0] {				
-					object = value				
+					object = append(object, value)				
 			}					
 	}
 
