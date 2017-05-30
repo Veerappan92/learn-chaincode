@@ -1,37 +1,3 @@
-
-/*
-Invoke Methods :
-****************
-CreateTransaction
-UpdateSupervisorDetails
-UpdateL1AuthorizerDetails
-UpdateL2AuthorizerDetails
-SetDateTime
-
-Query Methods :
-****************
-GetTransactionInitDetailsForRefAndMaker
-GetTransactionInitDetailsForRef
-GetAllDetailsForRef_AuditTrial
-ListRefnoForDate
-ListRefnoForBranch
-ListAllTransactions
-
-Dependency Methods :
-*********************
-
-GetTransactionInitiationMap
-GetSupervisorMap
-GetL1AuthMap
-GetL2AuthMap
-
-SetTransactionInitiationMap
-SetSupervisorMap
-SetL1AuthMap
-SetL2AuthMap
-
-*/
-
 package main
 
 import (
