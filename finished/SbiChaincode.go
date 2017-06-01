@@ -1,3 +1,38 @@
+/*
+Invoke Methods :
+****************
+CreateTransaction
+UpdateSupervisorDetails
+UpdateL1AuthorizerDetails
+UpdateL2AuthorizerDetails
+SetDateTime
+CreateTransEvent
+
+Query Methods :
+****************
+GetTransactionInitDetailsForRefAndMaker
+GetTransactionInitDetailsForRef
+GetAllDetailsForRef_AuditTrial
+ListRefnoForDate
+ListRefnoForBranch
+ListAllTransactions
+ListAllTransactionEvent
+
+Dependency Methods :
+*********************
+
+GetTransactionInitiationMap
+GetSupervisorMap
+GetL1AuthMap
+GetL2AuthMap
+
+SetTransactionInitiationMap
+SetSupervisorMap
+SetL1AuthMap
+SetL2AuthMap
+
+*/
+
 package main
 
 import (
@@ -65,19 +100,30 @@ type AuditTrial struct {
 	l2_auth        l2Auth                `json:"l2_auth"`
 }
 
+type TransEvent struct{
+eventNo				string  `json:"eventNo"`
+transRefNo   		string  `json:"transRefNo"`
+userId				string 	`json:"userId"`
+ipAdd   			string  `json:"ipAdd"`
+eventDateTime   	string  `json:"eventDateTime"`
+eventDesc   		string  `json:"eventDesc"`
+trans_branch		string  `json:"trans_branch"`
+}
+
+
 //Global declaration of maps
 var trans_Init_map map[string]transactionInitiation
 var supervisor_map map[string]amlCheck
 var l1Auth_map map[string]l1Auth
 var l2Auth_map map[string]l2Auth
 var date_map map[time.Time]string  // key : date and time ; value : ref no array
-
+var trans_event_map map[string]TransEvent
 
 //Invoke methods starts here 
 
 func CreateTransaction(stub shim.ChaincodeStubInterface, args []string) ([]byte, error) {
 
-	var trans_obj transactionInitiation
+	var trans_obj transactionInitiation	
 	var err error
 
 	fmt.Println("Entering createTransaction")
@@ -95,16 +141,49 @@ func CreateTransaction(stub shim.ChaincodeStubInterface, args []string) ([]byte,
 	}
 
 	// saving transactionInitiation and maker into map
-	GetTransactionInitiationMap(stub)
+	GetTransactionInitiationMap(stub)	
 
 	//put transaction initiation data and maker data into map
-	trans_Init_map[trans_obj.transRefNo] = trans_obj
+	trans_Init_map[trans_obj.transRefNo] = trans_obj	
 
-	SetTransactionInitiationMap(stub)
+	SetTransactionInitiationMap(stub)	
 	//SetDateTime(stub,trans_obj.transRefNo,trans_obj.makerDate)
 	
 	fmt.Printf("transaction initiation map : %v \n", trans_Init_map)	
 	fmt.Println("Transaction initiation Successfully saved")	
+	
+	return nil, nil
+}
+
+func CreateTransEvent(stub shim.ChaincodeStubInterface, args []string) ([]byte, error) {
+
+	var trans_event_obj TransEvent
+	var err error
+
+	fmt.Println("Entering TransactionEvent")
+
+	if (len(args) < 1) {
+		fmt.Println("Invalid number of args")
+		return nil, errors.New("Expected atleast one arguments for TransactionEvent")
+	}
+
+	//unmarshal TransactionEvent data from UI to "transactionInitiation" struct
+	err = json.Unmarshal([]byte(args[1]), &trans_event_obj)
+	if err != nil {
+		fmt.Printf("Unable to unmarshal TransactionEvent input : %s\n", err)
+		return nil, nil
+	}
+
+	// saving TransactionEvent into map
+	GetTransEventMap(stub)
+
+	//put TransactionEvent data data into map
+	trans_event_map[trans_event_obj.transRefNo] = trans_event_obj
+
+	setTransEventMap(stub)
+	
+	fmt.Printf("TransactionEvent map : %v \n", trans_event_map)	
+	fmt.Println("TransactionEvent Successfully saved")	
 	
 	return nil, nil
 }
@@ -341,7 +420,7 @@ func ListRefnoForBranch(stub shim.ChaincodeStubInterface, args []string) ([]byte
 
 	for _, value := range trans_Init_map {
 			if value.trans_init_branch  == args[0] {				
-					object = append(object, value)				
+					object = value				
 			}					
 	}
 
@@ -415,7 +494,8 @@ func GetTransactionInitDetailsForRef(stub shim.ChaincodeStubInterface, args []st
 
 	for _, value := range trans_Init_map {
 		if value.transRefNo  == refNo {							
-					object = value								
+					object = value		
+					//object = append(object, value)						
 		}
 	}
 
@@ -622,6 +702,36 @@ func ListAllTransactions(stub shim.ChaincodeStubInterface, args []string) ([]byt
 	return bytesRead, nil
 }
 
+func ListAllTransactionEvent(stub shim.ChaincodeStubInterface) ([]byte, error) {
+	var err error
+	var bytesRead []byte
+	var trans_event_list []TransEvent	
+
+	fmt.Println("Entering AllTransactionEvents")
+
+	err = GetTransEventMap(stub)
+
+	if err != nil {
+		fmt.Printf("Unable to read the list of AllTransactionEvents : %s\n", err)
+		return nil, err
+	}
+
+	for _, value := range trans_event_map {
+		//fmt.Printf("Events Value : %v\n", value.transRefNo)
+		trans_event_list = append(trans_event_list, value)
+	}
+	fmt.Printf("list of AllTransactionEvents : %v\n", trans_event_list)
+	bytesRead, err = json.Marshal(&trans_event_list)
+	fmt.Printf("list of AllTransactionEvents after Marshal : %v\n", bytesRead)
+	if err != nil {
+		fmt.Printf("Unable to return the list of AllTransactionEvents : %s\n", err)
+		return nil, err
+	}
+
+	return bytesRead, nil
+}
+
+
 //Query methods ends here 
 
 func GetTransactionInitiationMap(stub shim.ChaincodeStubInterface) error {
@@ -656,6 +766,41 @@ func GetTransactionInitiationMap(stub shim.ChaincodeStubInterface) error {
 	}
 	return nil
 }
+
+
+func GetTransEventMap(stub shim.ChaincodeStubInterface) error {
+	var err error
+	var bytesread []byte
+
+	bytesread, err = stub.GetState("TransEventMap")
+	if err != nil {
+		fmt.Printf("Failed to get  TransEventMap for block chain :%v\n", err)
+		return err
+	}
+	if len(bytesread) != 0 {
+		fmt.Printf("TransEventMap map exists.\n")
+		err = json.Unmarshal(bytesread, &trans_event_map)
+		if err != nil {
+			fmt.Printf("Failed to initialize  TransEventMap for block chain :%v\n", err)
+			return err
+		}
+	} else {
+		fmt.Printf("TransEventMap map does not exist. To be created. \n")
+		trans_event_map = make(map[string]TransEvent)
+		bytesread, err = json.Marshal(&trans_event_map)
+		if err != nil {
+			fmt.Printf("Failed to initialize  TransEventMap for block chain :%v\n", err)
+			return err
+		}
+		err = stub.PutState("TransEventMap", bytesread)
+		if err != nil {
+			fmt.Printf("Failed to initialize  TransEventMap for block chain :%v\n", err)
+			return err
+		}
+	}
+	return nil
+}
+
 
 
 func GetSupervisorMap(stub shim.ChaincodeStubInterface) error {
@@ -776,6 +921,26 @@ func SetTransactionInitiationMap(stub shim.ChaincodeStubInterface) error {
 	return nil
 }
 
+
+// setTransEventMap
+func setTransEventMap(stub shim.ChaincodeStubInterface) error {
+	var err error
+	var bytesread []byte
+
+	bytesread, err = json.Marshal(&trans_event_map)
+	if err != nil {
+		fmt.Printf("Failed to set the TransEventMap for block chain :%v\n", err)
+		return err
+	}
+	err = stub.PutState("TransEventMap", bytesread)
+	if err != nil {
+		fmt.Printf("Failed to set the TransEventMap %v\n", err)
+		return errors.New("Failed to set the TransEventMap")
+	}
+
+	return nil
+}
+
 //setSupervisorMap
 func SetSupervisorMap(stub shim.ChaincodeStubInterface) error {
 	var err error
@@ -854,6 +1019,8 @@ func (t *SBITransaction) Query(stub shim.ChaincodeStubInterface, function string
 		return ListRefnoForBranch(stub, args)
 	} else if function == "ListAllTransactions" {
 		return ListAllTransactions(stub, args)
+	} else if function == "ListAllTransactionEvent" {
+		return ListAllTransactionEvent(stub)
 	}
 	return nil, nil
 }
@@ -870,7 +1037,10 @@ func (t *SBITransaction) Invoke(stub shim.ChaincodeStubInterface, function strin
 		return nil, UpdateL2AuthorizerDetails(stub,args)
 	} else if function == "UpdateEventDesc" {
 		return nil, UpdateEventDesc(stub,args)
-	} 
+	} else if function == "CreateTransEvent" {
+		return CreateTransEvent(stub,args)
+	}
+	
 	fmt.Println("Function not found")
 	return nil, nil
 }
@@ -884,5 +1054,3 @@ func main() {
 	}
 
 }
-
-
